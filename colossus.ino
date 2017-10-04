@@ -44,10 +44,13 @@ float pToBrightness(float p, float led, float leds){
 }
 
 float pToBrightness(float p, float led, float leds, float width){
+  //difference between led pos and percentage
   float diff = abs( (led/leds) - (p-floor(p)) );
+  
+  //loop around if closer to other side
   if(0.5 < diff)
     diff = 1-diff;
-
+  
   return max(0, 1 - diff*NUM_LEDS/width);
 }
 

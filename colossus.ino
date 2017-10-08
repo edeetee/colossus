@@ -1,6 +1,6 @@
 #include "FastLED.h"
 
-#define NUM_LEDS 10
+#define NUM_LEDS 2*7
 
 CRGBArray<NUM_LEDS> leds;
 
@@ -9,15 +9,50 @@ void setup() {
   // put your setup code here, to run once:
   FastLED.addLeds<WS2811, 6, BRG>(leds, NUM_LEDS);
   leds.fill_solid(CRGB::Black);
-//  fastLED
 //  FastLED.setBrightness(50);
 }
 
 void loop() {
+  loopLightning();
 //  loopFlash();
-  loopBreathe();
+//  loopBreathe();
   FastLED.show(); 
 }
+
+void loopLightning(){
+  doLightning(0, 2, 50);
+  if(random(2)){
+    doLightning(2, 6, 30);
+  } else{
+    doLightning(8, 4, 50);
+  }
+  
+  delay(200);
+  leds.fill_solid(CRGB::Black);
+  FastLED.show(); 
+  delay(500);
+}
+
+bool isLed(int i){
+  return 0 <= i && i < NUM_LEDS;
+}
+
+int randomness = 20;
+void doLightning(int start, int count, int interval){
+//  for(CRGBSet::iterator pixel = leds.begin(), end = leds.end(); pixel != end; ++pixel) {
+//    (*pixel) = CRGB::Black;
+//    delay(interval);
+//  }
+  int iteration = 0 < count ? 1 : -1;
+  for(int i = start; i != start+count; i += iteration){
+    leds[i] = CRGB::White;
+    FastLED.show();
+    delay(random(interval-randomness, interval+randomness));
+    leds[i] = blend(CRGB::White, CRGB::Black, 150);
+    FastLED.show();
+  }
+}
+
 
 void loopFlash(){
   static bool flash = true;

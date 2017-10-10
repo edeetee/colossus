@@ -1,0 +1,5 @@
+{
+    "board": "arduino:avr:uno",
+    "sketch": "colossus.ino",
+    "port": "COM3"
+}

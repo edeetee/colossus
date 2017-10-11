@@ -1,19 +1,30 @@
 #include "FastLED.h"
 
-#define NUM_LEDS 2*7
+#define STRIP1 2*2
+#define PIN1 5
+
+#define STRIP2 2*5
+#define PIN2 6
+
+#define NUM_LEDS STRIP1+STRIP2
+
+#define FanPin 3
 
 CRGB leds[NUM_LEDS];
 
 void setup() {
   Serial.begin(9600);
+  pinMode(FanPin,OUTPUT);
   // put your setup code here, to run once:
-  FastLED.addLeds<WS2811, 6, BRG>(leds, NUM_LEDS);
+  FastLED.addLeds<WS2811, 5, BRG>(leds, STRIP1);
+  FastLED.addLeds<WS2811, 6, BRG>(leds, STRIP1, STRIP2);
   fill(CRGB::Black);
 //  FastLED.setBrightness(50);
 }
 
 void loop() {
   loopLightning();
+  loopFan();
 //  loopFlash();
 //  loopBreathe();
   FastLED.show(); 
@@ -23,9 +34,9 @@ void loop() {
 int ledMap[NUM_LEDS];
 int length;
 
-void add(int start, int end){
-  int iterator = (start < end) ? 1 : -1;
-  for(int i = start; i != end; i += iterator){
+void add(int start, int count){
+  int iterator = (0 < count) ? 1 : -1;
+  for(int i = start; i != (start+count); i += iterator){
     ledMap[length] = i;
     length++;
   }
@@ -36,19 +47,40 @@ void set(int ledI, CRGB color){
 }
 
 int start = NULL;
+int fillPeriod = 150;
+int holdPeriod = 500;
+int blackPeriod = 400;
+
 void loopLightning(){
-  float progress = (float)(millis()-start)/500;
-  if(start == NULL || 2.5 < progress){
+  int duration = (millis()-start);
+  float progress = (float)duration/fillPeriod;
+
+  //next after fill, hold and black
+  if(start == NULL || (fillPeriod+holdPeriod+blackPeriod) < duration){
     start = millis();
     progress = 0;
     length = 0;
     fill(CRGB::Black);
 
-    add(0, 2);
+    fillPeriod = random(100, 400);
+    holdPeriod = random(300, 1000);
+    blackPeriod = random(100, 3000);
+
     if(random(2)){
-      add(2, 6);
+      add(0, 2);
+      
+      int r = random(4);
+      if(r < 1.0)
+        add(2, 4);
+      else if(r < 2.0)
+        add(STRIP1+6, 2);
+      else if(r < 3.0)
+        add(STRIP1+9, -2);
+      else
+        add(STRIP1+5, -2);
+        
     } else{
-      add(9, 5);
+      add(STRIP1, 4);
     }
   }
 
@@ -57,16 +89,28 @@ void loopLightning(){
   for(int i = 0; i < length; i++){
     cur = color;
 
-    float ball1 = sinball(-300, i, length, 0.2);
-
-    float ball2 = sinball(1000, i, length, 0.5);
-    cur.nscale8(50*ball2 + 200*ball1 + 50);
+    float ball1 = sinball(0.5 + ts(-700)/2, i, length, 0.2);
+    float ball2 = sinball(0.5 + ts(200)/2, i, length, 0.5);
+    
+    cur.nscale8(150*ball1 + 105*ball2);
 
     float show = upto(progress, i, length);
+
+    //blackness after fill and hold
+    if((fillPeriod+holdPeriod) < duration){
+      show = 0;
+    }
+    
     cur.nscale8(255 * show);
 
     set(i, cur);
   }
+}
+
+void loopFan(){
+//  analogWrite(FanPin, (float)sin8(255*millis()/2000)0);
+//  analogWrite(FanPin, 40 + 35.0*ts(2000));
+//  analogWrite(FanPin, 150 + 100.0*ts(2000));
 }
 
 bool isLed(int i){
@@ -115,12 +159,11 @@ void fill(CRGB color){
 }
 
 float upto(float p, float i, float length){
-  return max(min(( p-floor(p) - (i/length))*length, 1.0), 0.0);
+  return max(min(( p - (i/length))*length, 1.0), 0.0);
 }
 
-float sinball(float interval, float i, float length, float radius){
+float sinball(float p, float i, float length, float radius){
   //difference between led pos and percentage
-  float p = t(interval);
   float diff = abs( (i/length) - (p-floor(p)) );
   
   //loop around if closer to other side

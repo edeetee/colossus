@@ -8,6 +8,10 @@
 
 #define NUM_LEDS STRIP1+STRIP2
 
+const int pZ = A0;
+const int pY = A1;
+const int pX = A2;
+
 CRGB leds[NUM_LEDS];
 
 struct Motor {
@@ -46,14 +50,20 @@ Motor motor2 = {6, 8, 7};
 void setup() {
   Serial.begin(9600);
 
+  //motors
   motor1.setup();
   motor2.setup();
 
-  // put your setup code here, to run once:
+  //strips
   FastLED.addLeds<WS2811, 5, BRG>(leds, STRIP1);
   FastLED.addLeds<WS2811, 6, BRG>(leds, STRIP1, STRIP2);
   fill(CRGB::Black);
   //  FastLED.setBrightness(50);
+
+  //accelerometer
+//  for(int pin = A0; i <= A2; i++){
+//    pinMode(pin, INPUT)
+//  }
 }
 
 void loop() {

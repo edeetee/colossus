@@ -1,18 +1,19 @@
 #include "FastLED.h"
 
-#define STRIP1 2*2
-#define PIN1 5
+#define NUM_STRIPS 2
 
-#define STRIP2 2*5
-#define PIN2 6
+#define STRIP1 2*4
+#define STRIP1PIN 3
+
+#define STRIP2 2
+#define STRIP2PIN 6
 
 #define NUM_LEDS STRIP1+STRIP2
 
-const int pZ = A0;
-const int pY = A1;
-const int pX = A2;
-
 CRGB leds[NUM_LEDS];
+
+
+const int accelPins[] = {A2, A1, A0};
 
 struct Motor {
   int E;
@@ -55,50 +56,121 @@ void setup() {
   motor2.setup();
 
   //strips
-  FastLED.addLeds<WS2811, 5, BRG>(leds, STRIP1);
-  FastLED.addLeds<WS2811, 6, BRG>(leds, STRIP1, STRIP2);
-  fill(CRGB::Black);
-  //  FastLED.setBrightness(50);
+  FastLED.addLeds<WS2811, STRIP1PIN, BRG>(leds, STRIP1);
+//  FastLED.addLeds<WS2811, STRIP2PIN, BRG>(leds, STRIP1, STRIP2);
+  FastLED.showColor(CRGB::Black);
+//  FastLED.setBrightness(80);
 
   //accelerometer
-//  for(int pin = A0; i <= A2; i++){
-//    pinMode(pin, INPUT)
-//  }
+  for (int i = 0; i < 3; i++) {
+    pinMode(accelPins[i], INPUT);
+  }
 }
 
+int raws[3];
+int last[3];
+int lows[3] = {460, 480, 480};
+int highs[3] = {180, 180, 180};
+
+float smoothedDiff[3];
+bool lastIsMoving = false;
+
 void loop() {
-  //  loopLightning();
-  loopFan();
+  float maxDiff = 0;
+  for(int i = 0; i < 3; i++){
+    raws[i] = analogRead(accelPins[i]);
+
+    smoothedDiff[i] = smoothedDiff[i] + (abs(last[i] - raws[i]) - smoothedDiff[i]) / 128;
+    
+    if(maxDiff < smoothedDiff[i])
+      maxDiff = smoothedDiff[i];
+
+    last[i] = raws[i];
+  }
+  bool isMoving = 5 < maxDiff;
+  
+//  Serial.print(maxDiff);
+//  Serial.print('\t');
+//  Serial.println(isMoving ? 10 : 0);
+
+  if(isMoving && !lastIsMoving)
+    resetLightning();
+
+  if(isMoving)
+    loopLightning();
+  else
+    FastLED.showColor(CRGB::Black);
+  //  loopFan();
   //  loopFlash();
   //  loopBreathe();
+
+  lastIsMoving = isMoving;
 }
 
 void loopFan() {
-  uint8_t speed = 255/2 + beatsin8(20) / 2;
-  Serial.println(speed);
+  uint8_t speed = 255 / 2 + beatsin8(20) / 2;
   motor1.speed(speed);
   motor2.speed(speed);
 }
 
-int ledMap[NUM_LEDS];
+CRGB* ledMap[NUM_LEDS];
 int length;
 
-void add(int start, int count) {
+void add(int strip, int start, int count) {
   int iterator = (0 < count) ? 1 : -1;
   for (int i = start; i != (start + count); i += iterator) {
-    ledMap[length] = i;
+    ledMap[length] = &FastLED[strip][i];
     length++;
   }
 }
 
+void add(int start, int count) {
+  add(0, start, count);
+}
+
 void set(int ledI, CRGB color) {
-  leds[ledMap[ledI]] = color;
+  *ledMap[ledI] = color;
+}
+
+bool randomPercent(int percent){
+  return random(0, 100) < percent;
+}
+
+void addLedsTesting() {
+  if(randomPercent(30)){
+    add(7, -2);
+  }else{
+    add(0, 1);
+    if(randomPercent(50))
+      add(5, -2);
+    else
+      add(1, 3);
+  }
 }
 
 int start = NULL;
-int fillPeriod = 150;
-int holdPeriod = 500;
-int blackPeriod = 400;
+int fillPeriod = 1;
+int holdPeriod;
+int blackPeriod;
+
+void resetLightning(){
+    start = millis();
+    length = 0;
+    FastLED.showColor(CRGB::Black);
+
+    fillPeriod = random(50, 500);
+    holdPeriod = random(300, 600);
+    blackPeriod = random(20, 500);
+    
+//    addLedsTesting();
+    add(0, STRIP1);
+
+//    int strikes = randomPercent(30) ? 1 : 
+//    1;
+//    for(int i = 0; i < strikes; i++){
+//    }
+//    addAllLeds();
+}
 
 void loopLightning() {
   int duration = (millis() - start);
@@ -106,40 +178,19 @@ void loopLightning() {
 
   //stage setup
   if (start == NULL || (fillPeriod + holdPeriod + blackPeriod) < duration) {
-    start = millis();
+    resetLightning();
     progress = 0;
-    length = 0;
-    fill(CRGB::Black);
-
-    fillPeriod = random(100, 400);
-    holdPeriod = random(300, 1000);
-    blackPeriod = random(100, 3000);
-
-    if (random(2)) {
-      add(0, 2);
-
-      int r = random(4);
-      if (r < 1.0)
-        add(2, 4);
-      else if (r < 2.0)
-        add(STRIP1 + 6, 2);
-      else if (r < 3.0)
-        add(STRIP1 + 9, -2);
-      else
-        add(STRIP1 + 5, -2);
-
-    } else {
-      add(STRIP1, 4);
-    }
   }
+
+  Serial.println(progress);
 
   //set color
   CRGB cur;
-  CRGB color = CHSV(160, 80, 255);
+  CRGB color = CHSV(160, 60, 255);
   for (int i = 0; i < length; i++) {
     cur = color;
 
-    float ball1 = sinball(0.5 + ts(-700) / 2, i, length, 0.2);
+    float ball1 = sinball(0.5 + ts(2700) / 2, i, length, 0.2);
     float ball2 = sinball(0.5 + ts(200) / 2, i, length, 0.5);
 
     cur.nscale8(150 * ball1 + 105 * ball2);
@@ -177,15 +228,6 @@ bool isLed(int i) {
 //   }
 // }
 
-
-// void loopFlash(){
-//   static bool flash = true;
-//   fill(flash ? (CRGB)CHSV(160, 110, 255) : CRGB::Black);
-//   delay(10+random(140));
-
-//   flash = !flash;
-// }
-
 // void loopBreathe(){
 //   float p = t(-3000);
 //   float p2 = t(8000);
@@ -197,13 +239,6 @@ bool isLed(int i) {
 //     leds[i] = CHSV(160, 110, min(255, 60+25*ts(2000)+150*a1+a2*200));
 //   }
 // }
-
-void fill(CRGB color) {
-  for (int i = 0; i < NUM_LEDS; i++) {
-    leds[i] = color;
-  }
-  FastLED.show();
-}
 
 float upto(float p, float i, float length) {
   return max(min(( p - (i / length)) * length, 1.0), 0.0);
